@@ -102,10 +102,9 @@ async function getTicketmaster() {
 async function getPredictHQ() {
   const today    = new Date().toISOString().slice(0,10);
   const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  // place_id 1275339 = Mumbai (more reliable than radius for PredictHQ India)
   const url = `https://api.predicthq.com/v1/events/`
-    + `?country=IN`
-    + `&location_around.origin=19.0760,72.8777`
-    + `&location_around.offset=40km`
+    + `?place.scope=1275339`
     + `&start.gte=${today}&start.lte=${tomorrow}`
     + `&category=concerts,performing-arts,sports,festivals,expos,community`
     + `&limit=20&sort=rank`;
@@ -127,6 +126,40 @@ async function getPredictHQ() {
 }
 
 // ── AviationStack ─────────────────────────────────────────────────────────────
+
+// ── BookMyShow via ScraperAPI ─────────────────────────────────────────────────
+async function getBMSEvents() {
+  const SCRAPERAPI_KEY = process.env.SCRAPERAPI_KEY || "";
+  if (!SCRAPERAPI_KEY) return [];
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,"");
+  const bmsUrl = encodeURIComponent(
+    "https://in.bookmyshow.com/api/explore/v1/discover/shows?appCode=MOBAND2&appVersion=14390&language=en&regionCode=MUMBAI&subTypes=MT,PLAY,SP,EV,AC,SPORT&category=BMS&date=" + today
+  );
+  const url = "http://api.scraperapi.com?api_key=" + SCRAPERAPI_KEY + "&url=" + bmsUrl + "&country_code=in";
+  try {
+    const data  = await fetchJSON(url);
+    const shows = data && data.BookMyShow && data.BookMyShow.arrEvent ? data.BookMyShow.arrEvent : [];
+    return shows.slice(0,40).map(function(show) {
+      const cat   = (show.EventCategory||"").toLowerCase();
+      const vtext = (show.VenueName||"") + " " + (show.VenueCity||"");
+      const etype = cat.indexOf("music") >= 0 || cat.indexOf("concert") >= 0 ? "concert"
+                  : cat.indexOf("comedy") >= 0 ? "comedy"
+                  : cat.indexOf("sport") >= 0  ? "sports"
+                  : cat.indexOf("exhibit") >= 0 || cat.indexOf("fair") >= 0 ? "exhibition"
+                  : cat.indexOf("movie") >= 0 || cat.indexOf("film") >= 0 ? "movie"
+                  : "other";
+      const mTime = (show.ShowTime||"").match(/([0-9]+):/);
+      const hour  = mTime ? parseInt(mTime[1]) : 20;
+      const zone  = matchZone(vtext) || fallbackZone(etype);
+      const score = scoreEvent(etype, zone, hour);
+      return (score > 0 && isMumbaiEvent(show.EventName, vtext, "mumbai"))
+        ? {name:show.EventName, venue:(show.VenueName||"Mumbai").trim(),
+           type:etype, hour:hour, zone:zone, score:score, source:"bookmyshow"}
+        : null;
+    }).filter(function(e){ return e !== null; });
+  } catch(e) { console.log("BMS error:", e.message); return []; }
+}
+
 async function getFlights() {
   const az = ZONES.find(z => z.name_en.includes("Airport"));
   if (!az) return [];
@@ -139,13 +172,18 @@ async function getFlights() {
     const night = items.filter(f => {
       const dep = f.departure?.scheduled;
       if (!dep) return false;
-      const h = new Date(dep).getHours();
-      return h >= 22 || h <= 5;
+      // Convert to IST (UTC+5:30)
+      const depDate = new Date(dep);
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istHour = new Date(depDate.getTime() + istOffset).getUTCHours();
+      return istHour >= 22 || istHour <= 5;
     }).slice(0, 3);
 
-    if (night.length > 0) {
-      return night.map(f => {
-        const hour = new Date(f.departure.scheduled).getHours();
+    const pool = night.length > 0 ? night : items.slice(0, 3);
+    if (pool.length > 0) {
+      return pool.map(f => {
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const hour = new Date(new Date(f.departure.scheduled).getTime() + istOffset).getUTCHours();
         const dest = f.arrival?.airport || f.airline?.name || "International";
         return { name:`Flight ${f.flight?.iata||""} — ${dest}`,
                  venue:"T2 International Airport, Mumbai",
@@ -187,14 +225,14 @@ function getWedding() {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 exports.handler = async () => {
-  const [tm, phq, flights] = await Promise.all([
-    getTicketmaster(), getPredictHQ(), getFlights()
+  const [tm, phq, bms, flights] = await Promise.all([
+    getTicketmaster(), getPredictHQ(), getBMSEvents(), getFlights()
   ]);
   const weddings = getWedding();
 
-  console.log(`TM:${tm.length} PHQ:${phq.length} Flights:${flights.length}`);
+  console.log(`TM:${tm.length} PHQ:${phq.length} BMS:${bms.length} Flights:${flights.length}`);
 
-  const all = [...tm, ...phq, ...flights, ...weddings]
+  const all = [...tm, ...phq, ...bms, ...flights, ...weddings]
     .sort((a,b) => b.score - a.score);
 
   const top3 = [], seen = new Set();
