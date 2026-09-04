@@ -1,0 +1,13 @@
+{
+  "name": "mumbai-driver-tips",
+  "version": "1.0.0",
+  "description": "Mumbai cab driver daily tip app",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static site - no build needed'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}
