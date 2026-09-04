@@ -28,6 +28,7 @@ function fetchJSON(url, headers = {}) {
 exports.handler = async () => {
   const today    = new Date().toISOString().slice(0,10);
   const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const in3days  = new Date(Date.now()+3*86400000).toISOString().slice(0,10);
   const report   = { keys:{}, timestamp: new Date().toISOString() };
 
   report.keys = {
