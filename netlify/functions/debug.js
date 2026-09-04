@@ -53,9 +53,9 @@ exports.handler = async () => {
     })),
   };
 
-  // PredictHQ — using place.scope=1275339 (Mumbai)
+  // PredictHQ — using place.exact=1275339 (Mumbai)
   const phq = await fetchJSON(
-    `https://api.predicthq.com/v1/events/?place.scope=1275339&start.gte=${today}&start.lte=${tomorrow}&category=concerts,performing-arts,sports,festivals,expos,community&limit=5&sort=rank`,
+    `https://api.predicthq.com/v1/events/?place.exact=1275339&start.gte=${today}&start.lte=${in3days}&category=concerts,performing-arts,sports,festivals,expos,community&limit=5&sort=rank`,
     { Authorization:`Bearer ${PREDICTHQ_KEY}` }
   );
   report.predicthq = {

@@ -100,12 +100,12 @@ async function getTicketmaster() {
 
 // ── PredictHQ ─────────────────────────────────────────────────────────────────
 async function getPredictHQ() {
-  const today    = new Date().toISOString().slice(0,10);
-  const tomorrow = new Date(Date.now()+86400000).toISOString().slice(0,10);
-  // place_id 1275339 = Mumbai (more reliable than radius for PredictHQ India)
+  const today   = new Date().toISOString().slice(0,10);
+  const in3days = new Date(Date.now()+3*86400000).toISOString().slice(0,10);
+  // place.exact=1275339 = Mumbai only (not parent state/country)
   const url = `https://api.predicthq.com/v1/events/`
-    + `?place.scope=1275339`
-    + `&start.gte=${today}&start.lte=${tomorrow}`
+    + `?place.exact=1275339`
+    + `&start.gte=${today}&start.lte=${in3days}`
     + `&category=concerts,performing-arts,sports,festivals,expos,community`
     + `&limit=20&sort=rank`;
   try {
