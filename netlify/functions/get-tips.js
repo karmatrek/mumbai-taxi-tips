@@ -169,26 +169,26 @@ async function getFlights() {
   try {
     const data  = await fetchJSON(url);
     const items = data?.data || [];
-    const night = items.filter(f => {
+    // Sort by IST hour — prefer late night/early morning but take any flight
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const withHour  = items.map(f => {
       const dep = f.departure?.scheduled;
-      if (!dep) return false;
-      // Convert to IST (UTC+5:30)
-      const depDate = new Date(dep);
-      const istOffset = 5.5 * 60 * 60 * 1000;
-      const istHour = new Date(depDate.getTime() + istOffset).getUTCHours();
-      return istHour >= 22 || istHour <= 5;
-    }).slice(0, 3);
+      const istHour = dep ? new Date(new Date(dep).getTime()+istOffset).getUTCHours() : 12;
+      return { f, istHour, isNight: istHour >= 22 || istHour <= 5 };
+    });
+    // Night flights first, then any
+    const sorted = [
+      ...withHour.filter(x => x.isNight),
+      ...withHour.filter(x => !x.isNight),
+    ].slice(0, 3);
 
-    const pool = night.length > 0 ? night : items.slice(0, 3);
-    if (pool.length > 0) {
-      return pool.map(f => {
-        const istOffset = 5.5 * 60 * 60 * 1000;
-        const hour = new Date(new Date(f.departure.scheduled).getTime() + istOffset).getUTCHours();
-        const dest = f.arrival?.airport || f.airline?.name || "International";
+    if (sorted.length > 0) {
+      return sorted.map(({f, istHour}) => {
+        const dest = f.arrival?.airport || f.airline?.name || "Domestic";
         return { name:`Flight ${f.flight?.iata||""} — ${dest}`,
                  venue:"T2 International Airport, Mumbai",
-                 type:"flight", hour, zone:az,
-                 score:scoreEvent("flight",az,hour), source:"aviationstack" };
+                 type:"flight", hour:istHour, zone:az,
+                 score:scoreEvent("flight",az,istHour), source:"aviationstack" };
       });
     }
   } catch(e) { console.log("AVS error:", e.message); }
