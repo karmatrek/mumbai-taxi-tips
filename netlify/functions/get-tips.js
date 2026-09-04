@@ -41,6 +41,22 @@ function fallbackZone(etype) {
   return ZONES.find(z => z.name_en.includes("BKC")) || ZONES[3];
 }
 
+
+// ── Mumbai city filter ────────────────────────────────────────────────────────
+const MUMBAI_TERMS = [
+  "mumbai","bombay","andheri","bandra","worli","dadar","kurla","thane",
+  "powai","juhu","malad","goregaon","borivali","versova","bkc","lower parel",
+  "navi mumbai","vashi","belapur","chembur","ghatkopar","colaba","nariman",
+  "churchgate","cst","wadala","parel","vikhroli","kandivali","dahisar",
+  "mira road","mulund","airoli","nerul","seawoods","ghansoli","panvel",
+  "hiranandani","oshiwara","seepz","chakala","sahar","santacruz","vileparle",
+];
+
+function isMumbaiEvent(title, venueName, locationText) {
+  const combined = `${title} ${venueName} ${locationText}`.toLowerCase();
+  return MUMBAI_TERMS.some(t => combined.includes(t));
+}
+
 function scoreEvent(etype, zone, hour) {
   if (!zone) return 0;
   const ride    = { long:10, office:7, mixed:6 }[zone.ride_type] || 5;
@@ -78,7 +94,7 @@ async function getTicketmaster() {
       const zone  = matchZone(vtext) || fallbackZone(etype);
       return { name:ev.name, venue:venue?.name||"Mumbai", type:etype, hour, zone,
                score:scoreEvent(etype,zone,hour), source:"ticketmaster" };
-    }).filter(e => e.score > 0);
+    }).filter(e => e.score > 0 && isMumbaiEvent(e.name, e.venue, "mumbai"));
   } catch(e) { console.log("TM error:", e.message); return []; }
 }
 
@@ -106,7 +122,7 @@ async function getPredictHQ() {
       const zone  = matchZone(ev.title+" "+vname) || fallbackZone(etype);
       return { name:ev.title, venue:vname||"Mumbai", type:etype, hour, zone,
                score:scoreEvent(etype,zone,hour), source:"predicthq" };
-    }).filter(e => e.score > 0);
+    }).filter(e => e.score > 0 && isMumbaiEvent(e.name, e.venue, \"\"));
   } catch(e) { console.log("PHQ error:", e.message); return []; }
 }
 
